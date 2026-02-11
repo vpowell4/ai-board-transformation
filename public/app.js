@@ -73,12 +73,26 @@ function setAuthMode(mode) {
   registerTab.classList.toggle("is-active", isRegister);
   nameInput.style.display = isRegister ? "block" : "none";
   nameInput.required = isRegister;
-  authSubmitBtn.textContent = isRegister ? "Create Account" : "Sign In";
+  authSubmitBtn.textContent = isRegister ? "Create Account" : "Continue to Simulator";
 }
 
 function showAuthError(message) {
   authError.hidden = false;
   authError.textContent = message;
+}
+
+function formatAuthError(error, mode) {
+  const code = error && error.code ? String(error.code) : "";
+  if (mode === "signin" && (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password"))) {
+    return "Sign-in failed. Check your email/password and try again.";
+  }
+  if (code.includes("auth/too-many-requests")) {
+    return "Too many attempts. Wait a few minutes, then try again.";
+  }
+  if (mode === "register" && code.includes("auth/email-already-in-use")) {
+    return "That email already has an account. Use Existing Account to sign in.";
+  }
+  return error && error.message ? error.message : "Authentication failed.";
 }
 
 function hideAuthError() {
@@ -518,7 +532,7 @@ authForm.addEventListener("submit", async (event) => {
       await auth.signInWithEmailAndPassword(email, password);
     }
   } catch (error) {
-    showAuthError(error.message || "Authentication failed.");
+    showAuthError(formatAuthError(error, authMode));
   } finally {
     setBusy(false);
   }
