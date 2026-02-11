@@ -114,6 +114,36 @@ function hideAuthError() {
   authError.textContent = "";
 }
 
+function showSignedOutState() {
+  authShell.hidden = false;
+  appShell.hidden = true;
+  sessionState = null;
+  sessionDocId = null;
+  readOnlySnapshot = false;
+  resetChat();
+}
+
+async function showSignedInState(user) {
+  authShell.hidden = true;
+  appShell.hidden = false;
+  renderSelectors();
+  await refreshSavedSessions();
+  savedHint.textContent = services.usingMock
+    ? "Running in localhost mock mode. Set window.FORCE_REAL_FIREBASE=1 to use live project."
+    : "Connected to Firebase.";
+  if (!sessionView && chatWindow.childElementCount === 0) {
+    appendMessage("system", `Signed in as ${user.email}. Select role/sector/scenario and start session.`);
+  }
+}
+
+function validateAuthInput(mode, email, password, name) {
+  if (!email) return "Email is required.";
+  if (!email.includes("@")) return "Enter a valid email address.";
+  if (!password) return "Password is required.";
+  if (mode === "register" && !name) return "Full name is required for account creation.";
+  return "";
+}
+
 function metricLabel(key) {
   const labels = {
     revenueGrowth: "Revenue Growth",
@@ -541,12 +571,15 @@ authForm.addEventListener("submit", async (event) => {
   setBusy(true);
   const email = emailInput.value.trim();
   const password = passwordInput.value;
+  const name = nameInput.value.trim();
+  const validationError = validateAuthInput(authMode, email, password, name);
+  if (validationError) {
+    showAuthError(validationError);
+    setBusy(false);
+    return;
+  }
   try {
     if (authMode === "register") {
-      const name = nameInput.value.trim();
-      if (!name || !email || !password) {
-        throw new Error("Name, email and password are required.");
-      }
       const cred = await auth.createUserWithEmailAndPassword(email, password);
       if (cred.user && cred.user.updateProfile) {
         await cred.user.updateProfile({ displayName: name });
@@ -558,11 +591,10 @@ authForm.addEventListener("submit", async (event) => {
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      await showSignedInState(cred.user);
     } else {
-      if (!email || !password) {
-        throw new Error("Email and password are required.");
-      }
-      await auth.signInWithEmailAndPassword(email, password);
+      const cred = await auth.signInWithEmailAndPassword(email, password);
+      await showSignedInState(cred.user);
     }
   } catch (error) {
     showAuthError(formatAuthError(error, authMode));
@@ -575,25 +607,11 @@ if (auth) {
   auth.onAuthStateChanged(async (user) => {
     currentUser = user || null;
     if (!user) {
-      authShell.hidden = false;
-      appShell.hidden = true;
-      sessionState = null;
-      sessionDocId = null;
-      readOnlySnapshot = false;
-      resetChat();
+      showSignedOutState();
       return;
     }
 
-    authShell.hidden = true;
-    appShell.hidden = false;
-    renderSelectors();
-    await refreshSavedSessions();
-    savedHint.textContent = services.usingMock
-      ? "Running in localhost mock mode. Set window.FORCE_REAL_FIREBASE=1 to use live project."
-      : "Connected to Firebase.";
-    if (!sessionView) {
-      appendMessage("system", `Signed in as ${user.email}. Select role/sector/scenario and start session.`);
-    }
+    await showSignedInState(user);
   });
 }
 
