@@ -84,7 +84,9 @@ function setAuthMode(mode) {
   nameInput.style.display = isRegister ? "block" : "none";
   nameInput.required = isRegister;
   authSubmitBtn.textContent = isRegister ? "Create Account" : "Continue to Simulator";
-  resetPasswordBtn.disabled = isRegister;
+  if (resetPasswordBtn) {
+    resetPasswordBtn.disabled = isRegister;
+  }
 }
 
 function showAuthError(message) {
@@ -538,24 +540,26 @@ signOutBtn.addEventListener("click", async () => {
   await auth.signOut();
 });
 
-resetPasswordBtn.addEventListener("click", async () => {
-  if (!auth || busy) return;
-  hideAuthError();
-  const email = emailInput.value.trim();
-  if (!email) {
-    showAuthError("Enter your email first, then click Reset Password.");
-    return;
-  }
-  setBusy(true);
-  try {
-    await auth.sendPasswordResetEmail(email);
-    showAuthError("Password reset email sent. Check your inbox.");
-  } catch (error) {
-    showAuthError(formatAuthError(error, "signin"));
-  } finally {
-    setBusy(false);
-  }
-});
+if (resetPasswordBtn) {
+  resetPasswordBtn.addEventListener("click", async () => {
+    if (!auth || busy) return;
+    hideAuthError();
+    const email = emailInput.value.trim();
+    if (!email) {
+      showAuthError("Enter your email first, then click Reset Password.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await auth.sendPasswordResetEmail(email);
+      showAuthError("Password reset email sent. Check your inbox.");
+    } catch (error) {
+      showAuthError(formatAuthError(error, "signin"));
+    } finally {
+      setBusy(false);
+    }
+  });
+}
 
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
