@@ -65,6 +65,7 @@ Optional runtime toggles (set in DevTools before reload):
 - `window.FORCE_MOCK_FIREBASE = true` to force mock mode.
 - `window.PREFER_MOCK_FIREBASE = true` to prefer mock mode on localhost.
 - `window.FORCE_REAL_FIREBASE = true` to force real Firebase.
+- Add `?diag=1` to the URL to auto-open the login diagnostics panel.
 
 ## Deploy
 

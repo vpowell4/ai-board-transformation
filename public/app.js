@@ -13,6 +13,10 @@ const authSubmitBtn = document.getElementById("authSubmitBtn");
 const resetPasswordBtn = document.getElementById("resetPasswordBtn");
 const authError = document.getElementById("authError");
 const authStatus = document.getElementById("authStatus");
+const diagPanel = document.getElementById("diagPanel");
+const runDiagBtn = document.getElementById("runDiagBtn");
+const copyDiagBtn = document.getElementById("copyDiagBtn");
+const diagOutput = document.getElementById("diagOutput");
 const nameInput = document.getElementById("nameInput");
 const emailInput = document.getElementById("emailInput");
 const passwordInput = document.getElementById("passwordInput");
@@ -62,11 +66,84 @@ let currentUser = null;
 let scenariosBySector = new Map();
 const principleMap = new Map(BOOK_PRINCIPLES.map((item) => [item.id, item.title]));
 const sectorMap = new Map(SECTORS.map((item) => [item.id, item]));
+const diagnostics = [];
+const maxDiagnostics = 220;
+
+function sanitizeConfig(config) {
+  if (!config) return null;
+  const apiKey = config.apiKey || "";
+  const maskedKey =
+    typeof apiKey === "string" && apiKey.length > 10
+      ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)}`
+      : apiKey || "";
+  return {
+    projectId: config.projectId || "",
+    authDomain: config.authDomain || "",
+    storageBucket: config.storageBucket || "",
+    messagingSenderId: config.messagingSenderId || "",
+    appId: config.appId || "",
+    apiKeyMasked: maskedKey,
+  };
+}
+
+function toErrorDetails(error) {
+  if (!error) return {};
+  return {
+    name: error.name || "",
+    code: error.code || "",
+    message: error.message || String(error),
+  };
+}
+
+function addDiagnostic(level, event, details = {}) {
+  const entry = {
+    at: new Date().toISOString(),
+    level,
+    event,
+    details,
+  };
+  diagnostics.push(entry);
+  if (diagnostics.length > maxDiagnostics) {
+    diagnostics.splice(0, diagnostics.length - maxDiagnostics);
+  }
+  if (diagOutput) {
+    diagOutput.textContent = diagnostics.map((item) => JSON.stringify(item)).join("\n");
+    diagOutput.scrollTop = diagOutput.scrollHeight;
+  }
+}
 
 if (!auth || !db) {
   authError.hidden = false;
   authError.textContent = "Firebase services unavailable. Check configuration in public/firebase-config.js.";
 }
+
+addDiagnostic("info", "app_bootstrap", {
+  href: location.href,
+  userAgent: navigator.userAgent,
+  online: navigator.onLine,
+  cookieEnabled: navigator.cookieEnabled,
+  language: navigator.language,
+  firebaseMode: services.usingMock ? "mock" : "live",
+  hasAuth: !!auth,
+  hasDb: !!db,
+  initError: services.initError || "",
+  config: sanitizeConfig(services.config),
+});
+
+window.addEventListener("error", (event) => {
+  addDiagnostic("error", "window_error", {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+  });
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  addDiagnostic("error", "unhandled_rejection", {
+    reason: event.reason && event.reason.message ? event.reason.message : String(event.reason),
+  });
+});
 
 function renderAuthStatus() {
   if (!authStatus) return;
@@ -74,6 +151,9 @@ function renderAuthStatus() {
   authStatus.textContent = services.usingMock
     ? `Mock mode active (${projectId})`
     : `Live Firebase: ${projectId}`;
+  addDiagnostic("info", "auth_status_rendered", {
+    text: authStatus.textContent,
+  });
 }
 
 function setAuthMode(mode) {
@@ -88,11 +168,13 @@ function setAuthMode(mode) {
   if (resetPasswordBtn) {
     resetPasswordBtn.disabled = isRegister;
   }
+  addDiagnostic("info", "auth_mode_changed", { mode });
 }
 
 function showAuthError(message) {
   authError.hidden = false;
   authError.textContent = message;
+  addDiagnostic("error", "auth_error_shown", { message });
 }
 
 function formatAuthError(error, mode) {
@@ -124,6 +206,7 @@ function showSignedOutState() {
   sessionDocId = null;
   readOnlySnapshot = false;
   resetChat();
+  addDiagnostic("info", "auth_state_signed_out");
 }
 
 async function showSignedInState(user) {
@@ -137,6 +220,10 @@ async function showSignedInState(user) {
   if (!sessionView && chatWindow.childElementCount === 0) {
     appendMessage("system", `Signed in as ${user.email}. Select role/sector/scenario and start session.`);
   }
+  addDiagnostic("info", "auth_state_signed_in", {
+    uid: user && user.uid ? user.uid : "",
+    email: user && user.email ? user.email : "",
+  });
 }
 
 function validateAuthInput(mode, email, password, name) {
@@ -316,6 +403,7 @@ function setBusy(value) {
   messageInput.disabled = value || !sessionState || readOnlySnapshot;
   loadSavedBtn.disabled = value;
   authSubmitBtn.disabled = value;
+  addDiagnostic("info", "ui_busy_changed", { busy: value });
 }
 
 async function saveSnapshot() {
@@ -544,6 +632,7 @@ signOutBtn.addEventListener("click", async () => {
 if (resetPasswordBtn) {
   resetPasswordBtn.addEventListener("click", async () => {
     if (!auth || busy) return;
+    addDiagnostic("info", "password_reset_requested");
     hideAuthError();
     const email = emailInput.value.trim();
     if (!email) {
@@ -554,10 +643,112 @@ if (resetPasswordBtn) {
     try {
       await auth.sendPasswordResetEmail(email);
       showAuthError("Password reset email sent. Check your inbox.");
+      addDiagnostic("info", "password_reset_sent", { email });
     } catch (error) {
+      addDiagnostic("error", "password_reset_failed", { email, error: toErrorDetails(error) });
       showAuthError(formatAuthError(error, "signin"));
     } finally {
       setBusy(false);
+    }
+  });
+}
+
+async function runDiagnostics() {
+  addDiagnostic("info", "diagnostics_run_started");
+  const apiKey = services.config && services.config.apiKey ? services.config.apiKey : "";
+  const email = emailInput.value.trim();
+  addDiagnostic("info", "environment_snapshot", {
+    href: location.href,
+    origin: location.origin,
+    online: navigator.onLine,
+    cookieEnabled: navigator.cookieEnabled,
+    mode: services.usingMock ? "mock" : "live",
+    hasAuth: !!auth,
+    hasDb: !!db,
+    currentUser: currentUser ? { uid: currentUser.uid, email: currentUser.email || "" } : null,
+    config: sanitizeConfig(services.config),
+  });
+
+  if (auth && email) {
+    try {
+      const methods = await auth.fetchSignInMethodsForEmail(email);
+      addDiagnostic("info", "fetch_sign_in_methods_success", { email, methods });
+    } catch (error) {
+      addDiagnostic("error", "fetch_sign_in_methods_failed", {
+        email,
+        error: toErrorDetails(error),
+      });
+    }
+  }
+
+  if (apiKey && email) {
+    try {
+      const response = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            identifier: email,
+            continueUri: location.origin,
+          }),
+        }
+      );
+      const body = await response.json().catch(() => ({}));
+      addDiagnostic("info", "identity_toolkit_create_auth_uri", {
+        status: response.status,
+        ok: response.ok,
+        body,
+      });
+    } catch (error) {
+      addDiagnostic("error", "identity_toolkit_create_auth_uri_failed", {
+        error: toErrorDetails(error),
+      });
+    }
+  }
+
+  if (db && currentUser) {
+    try {
+      const probe = await db
+        .collection("simulationSessions")
+        .where("ownerUid", "==", currentUser.uid)
+        .get();
+      addDiagnostic("info", "firestore_probe_success", {
+        docs: Array.isArray(probe.docs) ? probe.docs.length : 0,
+      });
+    } catch (error) {
+      addDiagnostic("error", "firestore_probe_failed", {
+        error: toErrorDetails(error),
+      });
+    }
+  }
+
+  addDiagnostic("info", "diagnostics_run_completed");
+}
+
+if (runDiagBtn) {
+  runDiagBtn.addEventListener("click", async () => {
+    runDiagBtn.disabled = true;
+    try {
+      await runDiagnostics();
+    } finally {
+      runDiagBtn.disabled = false;
+    }
+  });
+}
+
+if (copyDiagBtn) {
+  copyDiagBtn.addEventListener("click", async () => {
+    const payload = diagnostics.map((item) => JSON.stringify(item)).join("\n");
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(payload);
+        addDiagnostic("info", "diagnostics_copied");
+      } else {
+        addDiagnostic("error", "clipboard_not_supported");
+      }
+    } catch (error) {
+      addDiagnostic("error", "copy_diagnostics_failed", { error: toErrorDetails(error) });
     }
   });
 }
@@ -571,15 +762,20 @@ chatForm.addEventListener("submit", (event) => {
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!auth || busy) return;
+  if (!auth || busy) {
+    addDiagnostic("error", "auth_submit_blocked", { hasAuth: !!auth, busy });
+    return;
+  }
   hideAuthError();
   setBusy(true);
   const email = emailInput.value.trim();
   const password = passwordInput.value;
   const name = nameInput.value.trim();
+  addDiagnostic("info", "auth_submit_started", { mode: authMode, email });
   const validationError = validateAuthInput(authMode, email, password, name);
   if (validationError) {
     showAuthError(validationError);
+    addDiagnostic("error", "auth_submit_validation_failed", { mode: authMode, email, validationError });
     setBusy(false);
     return;
   }
@@ -597,11 +793,18 @@ authForm.addEventListener("submit", async (event) => {
         updatedAt: FieldValue.serverTimestamp(),
       });
       await showSignedInState(cred.user);
+      addDiagnostic("info", "register_success", { email, uid: cred.user.uid });
     } else {
       const cred = await auth.signInWithEmailAndPassword(email, password);
       await showSignedInState(cred.user);
+      addDiagnostic("info", "signin_success", { email, uid: cred.user.uid });
     }
   } catch (error) {
+    addDiagnostic("error", "auth_submit_failed", {
+      mode: authMode,
+      email,
+      error: toErrorDetails(error),
+    });
     showAuthError(formatAuthError(error, authMode));
   } finally {
     setBusy(false);
@@ -611,14 +814,28 @@ authForm.addEventListener("submit", async (event) => {
 if (auth) {
   auth.onAuthStateChanged(async (user) => {
     currentUser = user || null;
+    addDiagnostic("info", "on_auth_state_changed", {
+      signedIn: !!user,
+      uid: user && user.uid ? user.uid : "",
+      email: user && user.email ? user.email : "",
+    });
     if (!user) {
       showSignedOutState();
       return;
     }
 
-    await showSignedInState(user);
+    try {
+      await showSignedInState(user);
+    } catch (error) {
+      addDiagnostic("error", "show_signed_in_state_failed", { error: toErrorDetails(error) });
+      showAuthError(`Signed in but failed to load app data: ${formatAuthError(error, "signin")}`);
+      showSignedOutState();
+    }
   });
 }
 
 setAuthMode("signin");
 renderAuthStatus();
+if (diagPanel && new URLSearchParams(location.search).get("diag") === "1") {
+  diagPanel.open = true;
+}

@@ -174,6 +174,8 @@
       firebase: { firestore: { FieldValue } },
       usingMock: true,
       config: firebaseConfig,
+      initMode: "mock",
+      initError: "",
     };
   }
 
@@ -184,7 +186,15 @@
 
   if (typeof window.firebase === "undefined") {
     console.error("Firebase SDK was not loaded.");
-    window.firebaseServices = { auth: null, db: null, firebase: null, usingMock: false };
+    window.firebaseServices = {
+      auth: null,
+      db: null,
+      firebase: null,
+      usingMock: false,
+      config: firebaseConfig,
+      initMode: "failed",
+      initError: "Firebase SDK script not loaded",
+    };
     return;
   }
 
@@ -200,9 +210,19 @@
       firebase: window.firebase,
       usingMock: false,
       config: firebaseConfig,
+      initMode: "live",
+      initError: "",
     };
   } catch (error) {
     console.error("Firebase initialization failed:", error);
-    window.firebaseServices = { auth: null, db: null, firebase: null, usingMock: false };
+    window.firebaseServices = {
+      auth: null,
+      db: null,
+      firebase: null,
+      usingMock: false,
+      config: firebaseConfig,
+      initMode: "failed",
+      initError: error && error.message ? error.message : String(error),
+    };
   }
 })();
