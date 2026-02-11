@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Board AI Transformation Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="auth-shell" id="authShell">
+    <section class="auth-card">
+      <h1>Board AI Transformation Simulator</h1>
+      <p>Sign in to run and store boardroom simulations in Firestore.</p>
+      <div class="auth-tabs">
+        <button id="signInTab" class="is-active" type="button">Sign In</button>
+        <button id="registerTab" type="button">Register</button>
+      </div>
+      <form id="authForm" class="auth-form">
+        <input id="nameInput" type="text" placeholder="Full name (register only)" />
+        <input id="emailInput" type="email" placeholder="Email" required />
+        <input id="passwordInput" type="password" placeholder="Password" required />
+        <button id="authSubmitBtn" type="submit">Sign In</button>
+      </form>
+      <p id="authError" class="auth-error" hidden></p>
+    </section>
+  </main>
+
+  <main class="app-shell" id="appShell" hidden>
+    <header class="top-bar">
+      <div class="heading">
+        <h1>Board AI Transformation Simulator</h1>
+        <p>Sector-aware board simulation aligned to AI transformation frameworks.</p>
+      </div>
+      <div class="session-controls">
+        <label>
+          Role
+          <select id="roleSelect"></select>
+        </label>
+        <label>
+          Sector
+          <select id="sectorSelect"></select>
+        </label>
+        <label>
+          Scenario
+          <select id="scenarioSelect"></select>
+        </label>
+        <label>
+          Company
+          <input id="companyInput" type="text" value="Northstar Holdings" maxlength="80" />
+        </label>
+        <button id="startBtn" type="button">Start Session</button>
+        <button id="signOutBtn" type="button">Sign Out</button>
+      </div>
+    </header>
+
+    <section class="main-pane">
+      <aside class="metrics-panel">
+        <h2>Business Metrics</h2>
+        <div class="scenario-brief">
+          <h3 id="scenarioTitle">Scenario</h3>
+          <p id="scenarioMandate" class="subtext">Mandate: -</p>
+          <p id="scenarioTension" class="subtext">Tension: -</p>
+          <p id="scenarioAnchor" class="subtext">Anchor: -</p>
+          <p id="latestEvent" class="subtext">Latest event: none</p>
+        </div>
+        <div id="metricsGrid" class="metrics-grid"></div>
+        <div class="scorecard">
+          <h3>Outcome Score</h3>
+          <p id="scoreText">-</p>
+          <p id="turnText" class="subtext">-</p>
+          <p id="stageText" class="subtext">Stage: -</p>
+        </div>
+        <div class="dimensions">
+          <h3>Transformation Outcomes</h3>
+          <div id="dimensionGrid" class="dimensions-grid"></div>
+        </div>
+        <div class="principles">
+          <h3>Covered Principles</h3>
+          <ul id="principleList"></ul>
+        </div>
+        <div class="saved-sessions">
+          <h3>Saved Sessions</h3>
+          <select id="savedSessionSelect"></select>
+          <button id="loadSavedBtn" type="button">Load Snapshot</button>
+          <p id="savedHint" class="subtext">Snapshots are saved in Firestore each turn.</p>
+        </div>
+      </aside>
+
+      <section class="chat-panel">
+        <div id="chatWindow" class="chat-window" aria-live="polite"></div>
+
+        <div class="options-area">
+          <h3>Board Decision Options</h3>
+          <div id="optionsWrap" class="options-wrap"></div>
+        </div>
+
+        <form id="chatForm" class="composer">
+          <input
+            id="messageInput"
+            type="text"
+            placeholder="Ask a board question or type an action..."
+            autocomplete="off"
+          />
+          <button type="submit">Send</button>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+  <script src="./firebase-config.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

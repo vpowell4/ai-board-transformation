@@ -1,0 +1,20 @@
+{
+  "name": "ai-board-transformation-separate",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Board-level AI transformation simulation with chat UI and tuning harness",
+  "scripts": {
+    "start": "node scripts/start-static.js",
+    "harness": "node scripts/tune.js",
+    "scenario-review": "node scripts/scenario-review.js",
+    "deploy": "firebase deploy --only \"hosting,firestore:rules,firestore:indexes\"",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.35.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
