@@ -18,7 +18,10 @@
     host.startsWith("192.168.") ||
     host.startsWith("10.") ||
     host.startsWith("172.");
+  const forceMock = window.FORCE_MOCK_FIREBASE === true || window.FORCE_MOCK_FIREBASE === "1";
   const forceReal = window.FORCE_REAL_FIREBASE === true || window.FORCE_REAL_FIREBASE === "1";
+  const preferMockOnLocalHost =
+    window.PREFER_MOCK_FIREBASE === true || window.PREFER_MOCK_FIREBASE === "1";
 
   function setupMock() {
     const store = {
@@ -174,7 +177,7 @@
     };
   }
 
-  if ((isLocalHost && !forceReal) || isPlaceholder) {
+  if (forceMock || isPlaceholder || (isLocalHost && preferMockOnLocalHost && !forceReal)) {
     setupMock();
     return;
   }

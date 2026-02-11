@@ -12,7 +12,7 @@ Firebase-hosted board simulation app for AI transformation practice, aligned to:
 - Selectable board role, sector, and scenario.
 - Firebase Authentication (email/password).
 - Firestore persistence for saved simulation snapshots and transcript history.
-- Localhost mock mode for Auth + Firestore when Firebase config is not set.
+- Localhost uses real Firebase by default, with optional mock-mode toggles.
 - Harness tooling for scenario matrix runs and prompt-profile tuning.
 
 ## Local Run
@@ -28,7 +28,7 @@ Open:
 http://127.0.0.1:8080
 ```
 
-By default on localhost, the app runs in mock Firebase mode.
+By default on localhost, the app uses real Firebase when config values are present.
 
 ## Configure Real Firebase
 
@@ -60,7 +60,11 @@ Optional flags:
 - `-SkipNpmInstall`
 - `-SkipDeploy`
 
-On localhost, you can still force real Firebase with `window.FORCE_REAL_FIREBASE = true` before reload.
+Optional runtime toggles (set in DevTools before reload):
+
+- `window.FORCE_MOCK_FIREBASE = true` to force mock mode.
+- `window.PREFER_MOCK_FIREBASE = true` to prefer mock mode on localhost.
+- `window.FORCE_REAL_FIREBASE = true` to force real Firebase.
 
 ## Deploy
 
