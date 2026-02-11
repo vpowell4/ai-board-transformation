@@ -1,4 +1,4 @@
-# AI Board Transformation Simulator (Separate App)
+# AI Board Transformation Simulator
 
 Firebase-hosted board simulation app for AI transformation practice, aligned to:
 

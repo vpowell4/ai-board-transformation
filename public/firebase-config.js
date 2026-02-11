@@ -1,11 +1,11 @@
 (function () {
   const firebaseConfig = window.__FIREBASE_CONFIG__ || {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "YOUR_FIREBASE_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_FIREBASE_PROJECT_ID",
-    storageBucket: "YOUR_FIREBASE_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID",
+    apiKey: "AIzaSyDagq1dAsNTBiwgDf4mW9WxFztiwErsDOg",
+    authDomain: "ai-board-trans-vpowell4.firebaseapp.com",
+    projectId: "ai-board-trans-vpowell4",
+    storageBucket: "ai-board-trans-vpowell4.firebasestorage.app",
+    messagingSenderId: "47149279314",
+    appId: "1:47149279314:web:6d4985efaea819a031578b",
   };
 
   const isPlaceholder =
