@@ -44,7 +44,7 @@
     <header class="top-bar">
       <div class="heading">
         <h1>Board AI Transformation Simulator</h1>
-        <p>Sector-aware board simulation aligned to AI transformation frameworks.</p>
+        <p>Interactive boardroom simulation with quarterly agenda, vote package, and outcome debrief.</p>
       </div>
       <div class="session-controls">
         <label>
@@ -69,23 +69,47 @@
     </header>
 
     <section class="main-pane">
-      <aside class="options-panel">
+      <aside class="options-panel board-cycle-panel">
+        <div class="meeting-cycle">
+          <h2>Board Meeting Cycle</h2>
+          <div id="processStepper" class="process-stepper" aria-live="polite"></div>
+          <div class="progress-wrap">
+            <span class="subtext">Program Progress</span>
+            <div class="progress-track">
+              <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <p id="progressText" class="subtext">-</p>
+          </div>
+        </div>
+
+        <div class="agenda-panel">
+          <h3>Quarter Agenda</h3>
+          <ul id="agendaList"></ul>
+        </div>
+
         <div class="options-area">
           <h2>Board Decision Options</h2>
-          <p class="subtext">Round flow: select one decision, then submit to process the next quarter.</p>
+          <p class="subtext">Select one primary motion and optional secondary motion for this quarter.</p>
           <div id="optionsWrap" class="options-wrap"></div>
-          <div class="decision-queue">
-            <h3>Quarter Decision</h3>
-            <p id="selectedDecisionText" class="subtext">No decision selected.</p>
+          <div class="decision-package">
+            <h3>Decision Package</h3>
+            <p id="selectedPrimaryText" class="subtext">Primary motion: none selected.</p>
+            <p id="selectedSecondaryText" class="subtext">Secondary motion: none selected.</p>
             <div class="decision-actions">
-              <button id="advanceQuarterBtn" type="button">Submit Decision & Advance Quarter</button>
-              <button id="clearDecisionBtn" type="button">Clear Selection</button>
+              <button id="advanceQuarterBtn" type="button">Submit Package & Advance Quarter</button>
+              <button id="clearDecisionBtn" type="button">Clear Package</button>
             </div>
           </div>
         </div>
       </aside>
 
       <section class="chat-panel">
+        <article id="lastOutcomeCard" class="outcome-card">
+          <h2>Quarter Outcome</h2>
+          <p id="lastOutcomeSummary" class="subtext">Start a session to generate board outcomes.</p>
+          <div id="lastOutcomeDelta" class="delta-grid"></div>
+        </article>
+
         <div id="chatWindow" class="chat-window" aria-live="polite"></div>
 
         <form id="chatForm" class="composer">
@@ -109,11 +133,19 @@
           <p id="latestEvent" class="subtext">Latest event: none</p>
         </div>
         <div id="metricsGrid" class="metrics-grid"></div>
+        <div class="scenario-timeline">
+          <h3>Scenario Timeline</h3>
+          <ul id="scenarioTimeline"></ul>
+        </div>
         <div class="scorecard">
           <h3>Outcome Score</h3>
           <p id="scoreText">-</p>
           <p id="turnText" class="subtext">-</p>
           <p id="stageText" class="subtext">Stage: -</p>
+        </div>
+        <div class="board-voices">
+          <h3>Board Vote Signal</h3>
+          <div id="boardVoicesWrap" class="board-voices-wrap"></div>
         </div>
         <div class="dimensions">
           <h3>Transformation Outcomes</h3>

@@ -58,3 +58,34 @@ test("scenario matrix covers at least five scenarios per board role", () => {
     );
   }
 });
+
+test("quarter package supports primary and secondary decisions with turn telemetry", () => {
+  const state = createSession({
+    roleId: "board-chair",
+    sectorId: "financial-services",
+    scenarioId: "bank-risk-and-growth-rebalance",
+    seed: 91,
+  });
+  assert.ok(state.options.length >= 2);
+  const [primary, secondary] = state.options;
+
+  const turnResult = applyUserTurn(state, {
+    optionIds: [primary.id, secondary.id],
+    message: "Primary and secondary package",
+  });
+
+  assert.equal(turnResult.acceptedDecisions.length, 2);
+  assert.equal(state.history.length, 1);
+  assert.equal(state.history[0].decisionIds.length, 2);
+  assert.equal(state.history[0].multipliers.length, 2);
+  assert.ok(state.history[0].metricDelta);
+
+  const view = buildClientState(state);
+  assert.ok(view.lastTurn);
+  assert.equal(view.lastTurn.decisionIds.length, 2);
+  assert.ok(Array.isArray(view.options));
+  if (view.options.length > 0) {
+    assert.ok(typeof view.options[0].boardPulse.supportShare === "number");
+    assert.ok(["control", "foundation", "growth", "capability", "portfolio"].includes(view.options[0].optionType));
+  }
+});

@@ -2,13 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const DEFAULT_PROMPT_PROFILE = {
-  "value-pools": 1.1,
-  "governance-control": 1.15,
+  "value-pools": 1.05,
+  "governance-control": 1.33,
   "data-platform": 1.05,
   "portfolio-discipline": 1.1,
   "people-change": 1.0,
-  "human-agency": 1.1,
-  "measurement-cadence": 1.15,
+  "human-agency": 1.32,
+  "measurement-cadence": 1.5,
 };
 
 const KEYS = Object.keys(DEFAULT_PROMPT_PROFILE);

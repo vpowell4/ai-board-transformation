@@ -29,11 +29,18 @@ const startBtn = document.getElementById("startBtn");
 const signOutBtn = document.getElementById("signOutBtn");
 const chatWindow = document.getElementById("chatWindow");
 const optionsWrap = document.getElementById("optionsWrap");
-const selectedDecisionText = document.getElementById("selectedDecisionText");
+const selectedPrimaryText = document.getElementById("selectedPrimaryText");
+const selectedSecondaryText = document.getElementById("selectedSecondaryText");
 const advanceQuarterBtn = document.getElementById("advanceQuarterBtn");
 const clearDecisionBtn = document.getElementById("clearDecisionBtn");
 const chatForm = document.getElementById("chatForm");
 const messageInput = document.getElementById("messageInput");
+const processStepper = document.getElementById("processStepper");
+const progressFill = document.getElementById("progressFill");
+const progressText = document.getElementById("progressText");
+const agendaList = document.getElementById("agendaList");
+const lastOutcomeSummary = document.getElementById("lastOutcomeSummary");
+const lastOutcomeDelta = document.getElementById("lastOutcomeDelta");
 const metricsGrid = document.getElementById("metricsGrid");
 const scoreText = document.getElementById("scoreText");
 const turnText = document.getElementById("turnText");
@@ -45,6 +52,8 @@ const scenarioMandate = document.getElementById("scenarioMandate");
 const scenarioTension = document.getElementById("scenarioTension");
 const scenarioAnchor = document.getElementById("scenarioAnchor");
 const latestEvent = document.getElementById("latestEvent");
+const scenarioTimeline = document.getElementById("scenarioTimeline");
+const boardVoicesWrap = document.getElementById("boardVoicesWrap");
 const savedSessionSelect = document.getElementById("savedSessionSelect");
 const loadSavedBtn = document.getElementById("loadSavedBtn");
 const savedHint = document.getElementById("savedHint");
@@ -68,9 +77,11 @@ let readOnlySnapshot = false;
 let currentUser = null;
 let scenariosBySector = new Map();
 let renderedAuthUid = null;
-let selectedDecisionId = "";
-let selectedDecisionTitle = "";
-let selectedDecisionIndex = 0;
+let selectedPrimaryDecisionId = "";
+let selectedSecondaryDecisionId = "";
+let selectedPrimaryDecisionTitle = "";
+let selectedSecondaryDecisionTitle = "";
+let selectedFocusDecisionId = "";
 const principleMap = new Map(BOOK_PRINCIPLES.map((item) => [item.id, item.title]));
 const sectorMap = new Map(SECTORS.map((item) => [item.id, item]));
 const diagnostics = [];
@@ -233,13 +244,19 @@ function showSignedOutState() {
   sessionDocId = null;
   readOnlySnapshot = false;
   renderedAuthUid = null;
-  selectedDecisionId = "";
-  selectedDecisionTitle = "";
-  selectedDecisionIndex = 0;
+  selectedPrimaryDecisionId = "";
+  selectedSecondaryDecisionId = "";
+  selectedPrimaryDecisionTitle = "";
+  selectedSecondaryDecisionTitle = "";
+  selectedFocusDecisionId = "";
   savedSessionSelect.innerHTML = "";
   savedHint.textContent = "Snapshots are saved in Firestore each turn.";
   resetChat();
-  updateSelectedDecisionLabel();
+  renderProcessFlow(null);
+  renderAgenda(null);
+  renderLastOutcome(null);
+  renderBoardVoices(null);
+  updateDecisionPackageLabels();
   setBusy(false);
   addDiagnostic("info", "auth_state_signed_out", snapshotShellState());
 }
@@ -258,7 +275,7 @@ async function showSignedInState(user) {
       : "Connected to Firebase.";
   }
   if (!sessionView) {
-    updateSelectedDecisionLabel();
+    updateDecisionPackageLabels();
     syncAdvanceQuarterButton();
   }
   if (!sessionView && chatWindow.childElementCount === 0) {
@@ -321,74 +338,117 @@ function pushTranscript(role, content) {
   });
 }
 
-function updateSelectedDecisionLabel() {
-  if (!selectedDecisionText) return;
+function formatMetricDelta(metricKey, value) {
+  const sign = value >= 0 ? "+" : "";
+  if (metricKey === "revenueGrowth" || metricKey === "operatingMargin") {
+    return `${sign}${Number(value).toFixed(1)}pp`;
+  }
+  return `${sign}${Number(value).toFixed(1)}`;
+}
+
+function findOptionById(view, optionId) {
+  if (!view || !Array.isArray(view.options) || !optionId) return null;
+  return view.options.find((item) => item.id === optionId) || null;
+}
+
+function updateDecisionPackageLabels() {
+  if (!selectedPrimaryText || !selectedSecondaryText) return;
   if (readOnlySnapshot) {
-    selectedDecisionText.textContent = "Read-only snapshot loaded. Start a new session to submit decisions.";
+    selectedPrimaryText.textContent = "Read-only snapshot loaded.";
+    selectedSecondaryText.textContent = "Start a new session to submit motions.";
     return;
   }
-  if (!selectedDecisionId) {
-    selectedDecisionText.textContent = "No decision selected.";
-    return;
-  }
-  selectedDecisionText.textContent = `Queued: Option ${selectedDecisionIndex}. ${selectedDecisionTitle}`;
+  selectedPrimaryText.textContent = selectedPrimaryDecisionId
+    ? `Primary motion: ${selectedPrimaryDecisionTitle}`
+    : "Primary motion: none selected.";
+  selectedSecondaryText.textContent = selectedSecondaryDecisionId
+    ? `Secondary motion: ${selectedSecondaryDecisionTitle}`
+    : "Secondary motion: none selected.";
 }
 
 function syncAdvanceQuarterButton() {
   if (!advanceQuarterBtn) return;
-  const ready = !!sessionState && !readOnlySnapshot && !!selectedDecisionId;
+  const ready = !!sessionState && !readOnlySnapshot && !!selectedPrimaryDecisionId;
   advanceQuarterBtn.disabled = busy || !ready;
 }
 
-function clearSelectedDecision({ rerender = true } = {}) {
-  selectedDecisionId = "";
-  selectedDecisionTitle = "";
-  selectedDecisionIndex = 0;
-  updateSelectedDecisionLabel();
+function clearDecisionPackage({ rerender = true } = {}) {
+  selectedPrimaryDecisionId = "";
+  selectedSecondaryDecisionId = "";
+  selectedPrimaryDecisionTitle = "";
+  selectedSecondaryDecisionTitle = "";
+  selectedFocusDecisionId = "";
+  updateDecisionPackageLabels();
   syncAdvanceQuarterButton();
   if (rerender && sessionView) {
     renderOptions(sessionView);
+    renderBoardVoices(sessionView);
+    renderProcessFlow(sessionView);
   }
 }
 
-function selectDecision(option, { rerender = true } = {}) {
+function assignPrimaryDecision(option, { rerender = true } = {}) {
   if (!option || !option.id) return;
-  selectedDecisionId = option.id;
-  selectedDecisionTitle = option.title || "";
-  selectedDecisionIndex = Number(option.index || 0);
-  updateSelectedDecisionLabel();
+  selectedPrimaryDecisionId = option.id;
+  selectedPrimaryDecisionTitle = option.title || "";
+  if (selectedSecondaryDecisionId === selectedPrimaryDecisionId) {
+    selectedSecondaryDecisionId = "";
+    selectedSecondaryDecisionTitle = "";
+  }
+  selectedFocusDecisionId = option.id;
+  updateDecisionPackageLabels();
   syncAdvanceQuarterButton();
   if (rerender && sessionView) {
     renderOptions(sessionView);
+    renderBoardVoices(sessionView);
+    renderProcessFlow(sessionView);
   }
 }
 
-function pickDefaultDecision(view) {
-  if (!view || !Array.isArray(view.options) || view.options.length === 0) {
-    clearSelectedDecision({ rerender: false });
-    return;
+function assignSecondaryDecision(option, { rerender = true } = {}) {
+  if (!option || !option.id) return;
+  if (option.id === selectedPrimaryDecisionId) {
+    selectedSecondaryDecisionId = "";
+    selectedSecondaryDecisionTitle = "";
+  } else {
+    selectedSecondaryDecisionId = option.id;
+    selectedSecondaryDecisionTitle = option.title || "";
   }
-  const preferred = view.options.find((item) => item.recommended) || view.options[0];
-  selectDecision(preferred, { rerender: false });
+  selectedFocusDecisionId = option.id;
+  updateDecisionPackageLabels();
+  syncAdvanceQuarterButton();
+  if (rerender && sessionView) {
+    renderOptions(sessionView);
+    renderBoardVoices(sessionView);
+    renderProcessFlow(sessionView);
+  }
 }
 
-function syncSelectedDecisionWithView(view) {
-  if (readOnlySnapshot) {
-    clearSelectedDecision({ rerender: false });
+function syncDecisionPackageWithView(view) {
+  if (readOnlySnapshot || !view || !Array.isArray(view.options) || view.options.length === 0) {
+    clearDecisionPackage({ rerender: false });
     return;
   }
-  if (!view || !Array.isArray(view.options) || view.options.length === 0) {
-    clearSelectedDecision({ rerender: false });
-    return;
+  const primary = findOptionById(view, selectedPrimaryDecisionId);
+  if (!primary) {
+    selectedPrimaryDecisionId = "";
+    selectedPrimaryDecisionTitle = "";
+  } else {
+    selectedPrimaryDecisionTitle = primary.title || selectedPrimaryDecisionTitle;
   }
-  const current = view.options.find((item) => item.id === selectedDecisionId);
-  if (!current) {
-    pickDefaultDecision(view);
-    return;
+
+  const secondary = findOptionById(view, selectedSecondaryDecisionId);
+  if (!secondary || selectedSecondaryDecisionId === selectedPrimaryDecisionId) {
+    selectedSecondaryDecisionId = "";
+    selectedSecondaryDecisionTitle = "";
+  } else {
+    selectedSecondaryDecisionTitle = secondary.title || selectedSecondaryDecisionTitle;
   }
-  selectedDecisionTitle = current.title || selectedDecisionTitle;
-  selectedDecisionIndex = Number(current.index || selectedDecisionIndex || 0);
-  updateSelectedDecisionLabel();
+
+  if (!findOptionById(view, selectedFocusDecisionId)) {
+    selectedFocusDecisionId = selectedPrimaryDecisionId || selectedSecondaryDecisionId || view.options[0].id;
+  }
+  updateDecisionPackageLabels();
   syncAdvanceQuarterButton();
 }
 
@@ -402,6 +462,25 @@ function renderScenarioPreview(scenarioId, sectorId) {
   scenarioTension.textContent = `Tension: ${scenario ? scenario.tension : "-"}`;
   scenarioAnchor.textContent = `Book anchor: ${scenario && scenario.chapterAnchors[0] ? scenario.chapterAnchors[0] : "-"}`;
   latestEvent.textContent = "Latest event: none";
+  if (scenarioTimeline) {
+    scenarioTimeline.innerHTML = "";
+    const events = Array.isArray(scenario?.events) ? scenario.events : [];
+    if (events.length === 0) {
+      const li = document.createElement("li");
+      li.className = "is-past";
+      li.innerHTML = `<span class="title">No timeline events configured.</span>`;
+      scenarioTimeline.appendChild(li);
+    } else {
+      events.forEach((event) => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <span class="title">Q${event.quarter}: ${event.title}</span>
+          <span class="meta">Planned scenario shock</span>
+        `;
+        scenarioTimeline.appendChild(li);
+      });
+    }
+  }
 }
 
 function renderMetrics(view) {
@@ -416,8 +495,8 @@ function renderMetrics(view) {
     metricsGrid.appendChild(card);
   }
   scoreText.textContent = `${view.scorecard.overall.toFixed(1)} (${view.scorecard.rating})`;
-  turnText.textContent = `Meeting ${view.turn} of ${view.maxTurns} | Incidents ${view.scorecard.incidents}`;
-  stageText.textContent = `Stage: ${view.stage || "-"}`;
+  turnText.textContent = `${view.meeting?.currentQuarterLabel || `Meeting ${view.turn}`} | Meeting ${view.turn} of ${view.maxTurns} | Incidents ${view.scorecard.incidents}`;
+  stageText.textContent = `Stage: ${view.meeting?.stage || view.stage || "-"}`;
 }
 
 function renderDimensions(view) {
@@ -453,10 +532,154 @@ function renderPrinciples(view) {
   });
 }
 
+function renderProcessFlow(view) {
+  if (!processStepper) return;
+  const steps = ["Brief", "Debate", "Vote", "Outcome"];
+  let activeStep = 0;
+  if (view) {
+    if (view.completed || readOnlySnapshot) {
+      activeStep = 3;
+    } else if (selectedPrimaryDecisionId) {
+      activeStep = 2;
+    } else {
+      activeStep = 1;
+    }
+  }
+  processStepper.innerHTML = "";
+  steps.forEach((label, index) => {
+    const item = document.createElement("article");
+    item.className = "process-step";
+    if (index < activeStep) item.classList.add("is-complete");
+    if (index === activeStep) item.classList.add("is-active");
+    item.innerHTML = `<span>Step ${index + 1}</span><strong>${label}</strong>`;
+    processStepper.appendChild(item);
+  });
+  if (progressFill) {
+    const pct = Number(view?.progressPct || 0);
+    progressFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  }
+  if (progressText) {
+    progressText.textContent = view
+      ? `${Number(view.progressPct || 0).toFixed(1)}% complete (${view.turn}/${view.maxTurns} meetings)`
+      : "No active session.";
+  }
+}
+
+function renderAgenda(view) {
+  if (!agendaList) return;
+  agendaList.innerHTML = "";
+  const agenda = view?.meeting?.agenda || [];
+  if (agenda.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "Start a session to generate a board agenda.";
+    agendaList.appendChild(li);
+    return;
+  }
+  agenda.forEach((line) => {
+    const li = document.createElement("li");
+    li.textContent = line;
+    agendaList.appendChild(li);
+  });
+}
+
+function renderScenarioTimeline(view) {
+  if (!scenarioTimeline) return;
+  scenarioTimeline.innerHTML = "";
+  const events = view?.scenario?.events || [];
+  const currentQuarter = Number(view?.meeting?.currentQuarter || view?.turn || 0);
+  if (events.length === 0) {
+    const li = document.createElement("li");
+    li.className = "is-past";
+    li.innerHTML = `<span class="title">No scenario timeline configured.</span>`;
+    scenarioTimeline.appendChild(li);
+    return;
+  }
+  const occurred = new Set((view?.scenarioEventHistory || []).map((item) => Number(item.quarter)));
+  events.forEach((event) => {
+    const quarter = Number(event.quarter || 0);
+    const li = document.createElement("li");
+    if (quarter < currentQuarter || occurred.has(quarter)) {
+      li.classList.add("is-past");
+    } else if (quarter === currentQuarter) {
+      li.classList.add("is-live");
+    }
+    const status = occurred.has(quarter)
+      ? "Resolved"
+      : quarter === currentQuarter
+        ? "Live quarter"
+        : quarter > currentQuarter
+          ? "Upcoming"
+          : "Past";
+    li.innerHTML = `
+      <span class="title">Q${quarter}: ${event.title}</span>
+      <span class="meta">${status} | ${event.summary}</span>
+    `;
+    scenarioTimeline.appendChild(li);
+  });
+}
+
+function renderBoardVoices(view) {
+  if (!boardVoicesWrap) return;
+  boardVoicesWrap.innerHTML = "";
+  let pulse = null;
+  const focusedOption = findOptionById(view, selectedFocusDecisionId);
+  if (focusedOption && focusedOption.boardPulse) {
+    pulse = focusedOption.boardPulse;
+  } else if (view?.lastTurn?.boardPulse && view.lastTurn.boardPulse.length > 0) {
+    pulse = view.lastTurn.boardPulse[0].pulse;
+  }
+  if (!pulse || !Array.isArray(pulse.voices)) {
+    const p = document.createElement("p");
+    p.className = "subtext";
+    p.textContent = "Select an option to inspect board vote signal.";
+    boardVoicesWrap.appendChild(p);
+    return;
+  }
+  pulse.voices.forEach((voice) => {
+    const row = document.createElement("article");
+    row.className = "voice-row";
+    row.innerHTML = `
+      <div class="head">
+        <span class="role">${voice.roleName}</span>
+        <span class="stance ${voice.stance}">${voice.stance}</span>
+      </div>
+      <p class="reason">${voice.reason}</p>
+    `;
+    boardVoicesWrap.appendChild(row);
+  });
+}
+
+function renderLastOutcome(view) {
+  if (!lastOutcomeSummary || !lastOutcomeDelta) return;
+  lastOutcomeDelta.innerHTML = "";
+  const lastTurn = view?.lastTurn;
+  if (!lastTurn) {
+    lastOutcomeSummary.textContent = "No quarter submitted yet. Build a decision package and advance the quarter.";
+    return;
+  }
+  const titles = Array.isArray(lastTurn.decisionTitles) ? lastTurn.decisionTitles : [];
+  const summary = titles.length
+    ? `Q${lastTurn.quarter} package: ${titles.join(" + ")} | Score ${Number(lastTurn.scoreAfter || 0).toFixed(1)}`
+    : `Q${lastTurn.quarter} outcome captured.`;
+  lastOutcomeSummary.textContent = summary;
+  const priorityKeys = ["revenueGrowth", "operatingMargin", "modelRisk", "executionConfidence", "customerTrust", "aiAdoption"];
+  priorityKeys.forEach((key) => {
+    const value = Number(lastTurn.metricDelta?.[key] || 0);
+    const cell = document.createElement("article");
+    cell.className = "delta-item";
+    const up = value >= 0;
+    cell.innerHTML = `
+      <span>${metricLabel(key)}</span>
+      <strong class="${up ? "delta-up" : "delta-down"}">${formatMetricDelta(key, value)}</strong>
+    `;
+    lastOutcomeDelta.appendChild(cell);
+  });
+}
+
 function renderOptions(view) {
   optionsWrap.innerHTML = "";
   if (readOnlySnapshot) {
-    clearSelectedDecision({ rerender: false });
+    clearDecisionPackage({ rerender: false });
     const msg = document.createElement("p");
     msg.className = "subtext";
     msg.textContent = "Snapshot loaded in read-only mode. Start a new session to continue simulation.";
@@ -465,7 +688,7 @@ function renderOptions(view) {
     return;
   }
   if (!view.options || view.options.length === 0) {
-    clearSelectedDecision({ rerender: false });
+    clearDecisionPackage({ rerender: false });
     const msg = document.createElement("p");
     msg.className = "subtext";
     msg.textContent = "No options left. Session is complete.";
@@ -474,21 +697,48 @@ function renderOptions(view) {
     return;
   }
   view.options.forEach((option) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "option-btn";
-    if (option.id === selectedDecisionId) {
-      button.classList.add("is-selected");
-    }
-    button.innerHTML = `
-      <span class="title">Option ${option.index}. ${option.title}</span>
-      ${option.recommended ? '<span class="badge">Board Pack Priority</span>' : ""}
+    const card = document.createElement("article");
+    card.className = "option-card";
+    if (option.id === selectedPrimaryDecisionId) card.classList.add("is-primary");
+    if (option.id === selectedSecondaryDecisionId) card.classList.add("is-secondary");
+    const supportShare = Number(option.boardPulse?.supportShare || 0);
+    const supportPct = Math.round(Math.max(0, Math.min(1, supportShare)) * 100);
+    const cautionFlags = Array.isArray(option.boardPulse?.cautionFlags) ? option.boardPulse.cautionFlags : [];
+    card.innerHTML = `
+      <div class="option-topline">
+        <span class="title">Option ${option.index}. ${option.title}</span>
+        ${option.recommended ? '<span class="badge">Priority</span>' : ""}
+      </div>
       <span class="detail">${option.description}</span>
+      <span class="detail">${option.tradeoff || ""}</span>
+      <div class="meta-badges">
+        <span class="meta-badge">${option.optionType || "portfolio"}</span>
+        <span class="meta-badge">${option.riskProfile || "balanced"}</span>
+        ${cautionFlags.slice(0, 2).map((flag) => `<span class="meta-badge">${flag}</span>`).join("")}
+      </div>
+      <div class="support-meter">
+        <div class="support-track"><div class="support-fill" style="width:${supportPct}%"></div></div>
+        <span class="support-label">${supportPct}% board support signal</span>
+      </div>
+      <div class="option-actions">
+        <button type="button" class="primary-btn ${option.id === selectedPrimaryDecisionId ? "is-on" : ""}">
+          ${option.id === selectedPrimaryDecisionId ? "Primary Selected" : "Set Primary"}
+        </button>
+        <button type="button" class="secondary-btn ${option.id === selectedSecondaryDecisionId ? "is-on" : ""}">
+          ${option.id === selectedSecondaryDecisionId ? "Secondary Selected" : "Set Secondary"}
+        </button>
+      </div>
     `;
-    button.addEventListener("click", () => selectDecision(option));
-    optionsWrap.appendChild(button);
+    const [primaryBtn, secondaryBtn] = card.querySelectorAll("button");
+    primaryBtn.addEventListener("click", () => assignPrimaryDecision(option));
+    secondaryBtn.addEventListener("click", () => assignSecondaryDecision(option));
+    card.addEventListener("mouseenter", () => {
+      selectedFocusDecisionId = option.id;
+      renderBoardVoices(view);
+    });
+    optionsWrap.appendChild(card);
   });
-  updateSelectedDecisionLabel();
+  updateDecisionPackageLabels();
   syncAdvanceQuarterButton();
 }
 
@@ -506,12 +756,17 @@ function renderScenarioDetails(view) {
 
 function renderSession(view, includeBoardMessage = true) {
   sessionView = view;
-  syncSelectedDecisionWithView(view);
+  syncDecisionPackageWithView(view);
+  renderProcessFlow(view);
+  renderAgenda(view);
   renderScenarioDetails(view);
+  renderScenarioTimeline(view);
   renderMetrics(view);
   renderDimensions(view);
   renderPrinciples(view);
   renderOptions(view);
+  renderLastOutcome(view);
+  renderBoardVoices(view);
   if (includeBoardMessage && view.lastBoardMessage) {
     appendMessage("system", view.lastBoardMessage);
     pushTranscript("system", view.lastBoardMessage);
@@ -630,6 +885,7 @@ async function startSession() {
   setBusy(true);
   readOnlySnapshot = false;
   resetChat();
+  clearDecisionPackage({ rerender: false });
   try {
     const seed = Date.now();
     sessionState = createSession({
@@ -704,14 +960,22 @@ async function sendTurn(payload) {
 
 async function submitQueuedDecision() {
   if (!sessionState || busy || readOnlySnapshot) return;
-  if (!selectedDecisionId) {
-    appendMessage("system", "Select a board decision first, then submit to advance the quarter.");
+  if (!selectedPrimaryDecisionId) {
+    appendMessage("system", "Select a primary board motion first, then submit the quarterly package.");
     return;
   }
+  const selectedOptionIds = [selectedPrimaryDecisionId];
+  if (selectedSecondaryDecisionId) {
+    selectedOptionIds.push(selectedSecondaryDecisionId);
+  }
+  const messageParts = [];
+  if (selectedPrimaryDecisionTitle) messageParts.push(`Primary: ${selectedPrimaryDecisionTitle}`);
+  if (selectedSecondaryDecisionTitle) messageParts.push(`Secondary: ${selectedSecondaryDecisionTitle}`);
   await sendTurn({
-    optionId: selectedDecisionId,
-    message: selectedDecisionTitle || "Board decision selected",
+    optionIds: selectedOptionIds,
+    message: messageParts.join(" | ") || "Board package selected",
   });
+  clearDecisionPackage();
 }
 
 async function loadSavedSnapshot() {
@@ -728,6 +992,7 @@ async function loadSavedSnapshot() {
     sessionDocId = id;
     sessionState = null;
     readOnlySnapshot = true;
+    clearDecisionPackage({ rerender: false });
     resetChat();
     sessionView = data.snapshot;
     if (!sessionView) {
@@ -803,7 +1068,7 @@ if (advanceQuarterBtn) {
   advanceQuarterBtn.addEventListener("click", submitQueuedDecision);
 }
 if (clearDecisionBtn) {
-  clearDecisionBtn.addEventListener("click", () => clearSelectedDecision());
+  clearDecisionBtn.addEventListener("click", () => clearDecisionPackage());
 }
 signOutBtn.addEventListener("click", async () => {
   if (!auth) return;
@@ -1020,7 +1285,11 @@ if (auth) {
 
 setAuthMode("signin");
 renderAuthStatus();
-updateSelectedDecisionLabel();
+renderProcessFlow(null);
+renderAgenda(null);
+renderLastOutcome(null);
+renderBoardVoices(null);
+updateDecisionPackageLabels();
 syncAdvanceQuarterButton();
 if (diagPanel && new URLSearchParams(location.search).get("diag") === "1") {
   diagPanel.open = true;

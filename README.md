@@ -8,7 +8,10 @@ Firebase-hosted board simulation app for AI transformation practice, aligned to:
 
 ## Features
 
-- Single-screen simulation UI with chat + option decisions.
+- Interactive board meeting cycle UI (`Brief -> Debate -> Vote -> Outcome`).
+- Two-motion quarterly decision package (primary + optional secondary motion).
+- Role-based board vote signal per option (support/caution/oppose lenses).
+- Scenario timeline with quarter shocks and outcome debrief telemetry.
 - Selectable board role, sector, and scenario.
 - Firebase Authentication (email/password).
 - Firestore persistence for saved simulation snapshots and transcript history.
